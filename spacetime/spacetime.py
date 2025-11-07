@@ -311,69 +311,69 @@ class Spacetime:
         coords_str = ", ".join(sp.latex(c) for c in self._coords)
         lines.append(rf"Coordinates: $({coords_str})$")
 
-        def add_block(title: str, content: list[str]):
-            if not content:
-                return
+        def add_align_block(title: str, rows: list[Tuple[str, str]], fallback_text: str):
             lines.append(rf"\subsection*{{{title}}}")
-            lines.extend(content)
+            lines.append(r"\begin{align*}")
+            if rows:
+                for idx, (lhs, rhs) in enumerate(rows):
+                    suffix = r" \\" if idx < len(rows) - 1 else ""
+                    lines.append(rf"  {lhs} & = {rhs}{suffix}")
+            else:
+                lines.append(rf"  \text{{{fallback_text}}}")
+            lines.append(r"\end{align*}")
 
         if show_metric:
             ds2 = sp.latex(self._line_element_expr(), symbol_names=latex_symbol_map)
-            add_block("Line element", [rf"\[ ds^2 = {ds2} \]"])
+            add_align_block("Line element", [("ds^2", ds2)], "\text{No metric available.}")
 
         n = len(self._coords)
         zero = sp.S.Zero
 
         if show_christoffel:
-            christoffel_lines = []
+            christoffel_rows = []
             for i in range(n):
                 for j in range(n):
                     k_iter = range(n) if show_all_pairs else range(j, n)
                     for k in k_iter:
                         val = sp.simplify(self.Gamma[i, j, k])
                         if val != zero:
-                            christoffel_lines.append(
-                                rf"\[ \Gamma^{{{i}}}_{{{j}{k}}} = {fmt(val)} \]"
+                            christoffel_rows.append(
+                                (rf"\Gamma^{{{i}}}_{{{j}{k}}}", fmt(val))
                             )
-            if not christoffel_lines:
-                christoffel_lines.append(r"\[ \text{All Christoffel symbols vanish.} \]")
-            add_block("Christoffel symbols", christoffel_lines)
+            add_align_block("Christoffel symbols", christoffel_rows, "All Christoffel symbols vanish.")
 
         if show_riemann:
-            riemann_lines = []
+            riemann_rows = []
             for i in range(n):
                 for j in range(n):
                     for k in range(n):
                         for l in range(n):
                             val = sp.simplify(self.Riemann[i,j,k,l])
                             if val != zero:
-                                riemann_lines.append(
-                                    rf"\[ R^{{{i}}}_{{{j}{k}{l}}} = {fmt(val)} \]"
+                                riemann_rows.append(
+                                    (rf"R^{{{i}}}_{{{j}{k}{l}}}", fmt(val))
                                 )
-            if not riemann_lines:
-                riemann_lines.append(r"\[ \text{All Riemann tensor components vanish.} \]")
-            add_block("Riemann tensor", riemann_lines)
+            add_align_block("Riemann tensor", riemann_rows, "All Riemann tensor components vanish.")
 
         if show_ricci:
-            ricci_lines = []
+            ricci_rows = []
             for i in range(n):
                 for j in range(i, n):
                     val = sp.simplify(self.Ricci[i,j])
                     if val != zero:
-                        ricci_lines.append(rf"\[ R_{{{i}{j}}} = {fmt(val)} \]")
-            if not ricci_lines:
-                ricci_lines.append(r"\[ \text{All Ricci tensor components vanish.} \]")
-            add_block("Ricci tensor", ricci_lines)
+                        ricci_rows.append((rf"R_{{{i}{j}}}", fmt(val)))
+            add_align_block("Ricci tensor", ricci_rows, "All Ricci tensor components vanish.")
 
         if show_scalar:
             scalar_expr = fmt(self.Ricci_scalar)
-            add_block("Ricci scalar", [rf"\[ R = {scalar_expr} \]"])
+            add_align_block("Ricci scalar", [("R", scalar_expr)], "R = 0")
 
         document = dedent(
             f"""
-            \\documentclass[11pt]{{article}}
+            \\documentclass[11pt,fleqn]{{article}}
             \\usepackage{{amsmath}}
             \\usepackage{{amssymb}}
+            \\setlength{{\\mathindent}}{{0pt}}
             \\begin{{document}}
             {chr(10).join(lines)}
             \\end{{document}}
