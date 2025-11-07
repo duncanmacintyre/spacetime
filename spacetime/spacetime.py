@@ -5,9 +5,13 @@ spacetime.spacetime
 Object-oriented GR helpers on top of SymPy.
 """
 from __future__ import annotations
-import sympy as sp
 from dataclasses import dataclass
-from typing import Sequence, Tuple
+from pathlib import Path
+import subprocess
+from textwrap import dedent
+from typing import Sequence, Tuple, Union
+
+import sympy as sp
 
 __all__ = ["Spacetime"]
 
@@ -163,14 +167,27 @@ class Spacetime:
                 ds2_new += gprime[a,b]*dnew[a]*dnew[b]
         return Spacetime(tuple(new_coords), sp.expand(ds2_new))
 
-    def print_metric(self):
-        dcoords = [_find_symbol_by_name(self.ds2, f"d{str(c)}") for c in self._coords]
-        ds2 = 0
+    def _differential_symbols(self) -> Tuple[sp.Symbol, ...]:
+        return tuple(_find_symbol_by_name(self.ds2, f"d{str(c)}") for c in self._coords)
+
+    def _line_element_expr(self) -> sp.Expr:
+        dcoords = self._differential_symbols()
+        ds2 = sp.S.Zero
         n = len(self._coords)
         for i in range(n):
             for j in range(n):
                 ds2 += self._g[i,j]*dcoords[i]*dcoords[j]
-        print(f"ds^2 = {sp.sstr(sp.simplify(ds2))}")
+        return sp.simplify(ds2)
+
+    def _latex_symbol_map(self) -> dict[sp.Symbol, str]:
+        mapping = {}
+        for coord, dcoord in zip(self._coords, self._differential_symbols()):
+            mapping[dcoord] = rf"d{sp.latex(coord)}"
+        return mapping
+
+    def print_metric(self):
+        ds2 = self._line_element_expr()
+        print(f"ds^2 = {sp.sstr(ds2)}")
 
     def print_nonzero(self, latex: bool=False, show_all_pairs: bool=False,
                       show_christoffel: bool=True, show_riemann: bool=True,
@@ -235,3 +252,157 @@ class Spacetime:
         if show_scalar:
             print("# Ricci scalar R")
             print(fmt(self.Ricci_scalar))
+
+    def render_latex_pdf(self, filename: Union[str, Path] = "spacetime_report",
+                         show_metric: bool = True,
+                         show_christoffel: bool = True,
+                         show_riemann: bool = True,
+                         show_ricci: bool = True,
+                         show_scalar: bool = True,
+                         show_all_pairs: bool = False,
+                         pdflatex: str = "pdflatex",
+                         cleanup_auxiliary: bool = True) -> Path:
+        """Render a LaTeX report for this spacetime as a PDF.
+
+        Parameters
+        ----------
+        filename:
+            Target filename or stem for the resulting PDF. The matching .tex file
+            is written in the same directory for inspection.
+        show_metric/show_*:
+            Mirror ``print_nonzero`` toggles to control which tensors appear in
+            the report.
+        show_all_pairs:
+            Include off-diagonal Christoffel components instead of only the
+            symmetric upper triangle.
+        pdflatex:
+            Executable used to turn the generated .tex file into a PDF.
+        cleanup_auxiliary:
+            Remove ``.aux``/``.log``/``.out`` files produced by ``pdflatex``
+            after rendering completes.
+
+        Returns
+        -------
+        Path
+            Absolute path to the generated PDF.
+
+        Raises
+        ------
+        RuntimeError
+            If the LaTeX toolchain cannot be executed successfully.
+        """
+
+        output_path = Path(filename)
+        if output_path.suffix:
+            if output_path.suffix.lower() == ".pdf":
+                pdf_path = output_path
+            else:
+                pdf_path = output_path.with_suffix(".pdf")
+        else:
+            pdf_path = output_path.parent / f"{output_path.name}.pdf"
+        tex_path = pdf_path.with_suffix(".tex")
+        pdf_path.parent.mkdir(parents=True, exist_ok=True)
+
+        latex_symbol_map = self._latex_symbol_map()
+
+        def fmt(expr):
+            return sp.latex(sp.simplify(expr), symbol_names=latex_symbol_map)
+        lines = [r"\section*{Spacetime Report}"]
+        coords_str = ", ".join(sp.latex(c) for c in self._coords)
+        lines.append(rf"Coordinates: $({coords_str})$")
+
+        def add_block(title: str, content: list[str]):
+            if not content:
+                return
+            lines.append(rf"\subsection*{{{title}}}")
+            lines.extend(content)
+
+        if show_metric:
+            ds2 = sp.latex(self._line_element_expr(), symbol_names=latex_symbol_map)
+            add_block("Line element", [rf"\[ ds^2 = {ds2} \]"])
+
+        n = len(self._coords)
+        zero = sp.S.Zero
+
+        if show_christoffel:
+            christoffel_lines = []
+            for i in range(n):
+                for j in range(n):
+                    k_iter = range(n) if show_all_pairs else range(j, n)
+                    for k in k_iter:
+                        val = sp.simplify(self.Gamma[i, j, k])
+                        if val != zero:
+                            christoffel_lines.append(
+                                rf"\[ \Gamma^{{{i}}}_{{{j}{k}}} = {fmt(val)} \]"
+                            )
+            if not christoffel_lines:
+                christoffel_lines.append(r"\[ \text{All Christoffel symbols vanish.} \]")
+            add_block("Christoffel symbols", christoffel_lines)
+
+        if show_riemann:
+            riemann_lines = []
+            for i in range(n):
+                for j in range(n):
+                    for k in range(n):
+                        for l in range(n):
+                            val = sp.simplify(self.Riemann[i,j,k,l])
+                            if val != zero:
+                                riemann_lines.append(
+                                    rf"\[ R^{{{i}}}_{{{j}{k}{l}}} = {fmt(val)} \]"
+                                )
+            if not riemann_lines:
+                riemann_lines.append(r"\[ \text{All Riemann tensor components vanish.} \]")
+            add_block("Riemann tensor", riemann_lines)
+
+        if show_ricci:
+            ricci_lines = []
+            for i in range(n):
+                for j in range(i, n):
+                    val = sp.simplify(self.Ricci[i,j])
+                    if val != zero:
+                        ricci_lines.append(rf"\[ R_{{{i}{j}}} = {fmt(val)} \]")
+            if not ricci_lines:
+                ricci_lines.append(r"\[ \text{All Ricci tensor components vanish.} \]")
+            add_block("Ricci tensor", ricci_lines)
+
+        if show_scalar:
+            scalar_expr = fmt(self.Ricci_scalar)
+            add_block("Ricci scalar", [rf"\[ R = {scalar_expr} \]"])
+
+        document = dedent(
+            f"""
+            \\documentclass[11pt]{{article}}
+            \\usepackage{{amsmath}}
+            \\usepackage{{amssymb}}
+            \\begin{{document}}
+            {chr(10).join(lines)}
+            \\end{{document}}
+            """
+        ).strip()
+        tex_path.write_text(document)
+
+        try:
+            subprocess.run(
+                [pdflatex, "-interaction=nonstopmode", tex_path.name],
+                cwd=pdf_path.parent,
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+        except FileNotFoundError as exc:
+            raise RuntimeError(
+                f"Unable to find LaTeX engine '{pdflatex}'. Install a TeX distribution and retry."
+            ) from exc
+        except subprocess.CalledProcessError as exc:
+            stderr = exc.stderr.decode(errors="ignore") if exc.stderr else ""
+            raise RuntimeError(
+                "pdflatex failed to render the spacetime report.\n" + stderr
+            ) from exc
+
+        if cleanup_auxiliary:
+            for ext in (".aux", ".log", ".out"):
+                aux_path = pdf_path.with_suffix(ext)
+                if aux_path.exists():
+                    aux_path.unlink()
+
+        return pdf_path.resolve()

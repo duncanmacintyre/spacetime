@@ -1,7 +1,13 @@
 
+import os
+import subprocess
+import sys
+import tempfile
 import unittest
+from pathlib import Path
+from unittest import mock
+
 import sympy as sp
-import sys, os
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from spacetime import Spacetime
@@ -207,6 +213,31 @@ class TestSpacetimeInternals(unittest.TestCase):
         self.assertIn(r"\Gamma^0_{11}", out)
         self.assertIn(r"\Gamma^1_{10}", out)
         self.assertNotIn("Ricci tensor components", out)
+
+    def test_render_latex_pdf_invokes_pdflatex(self):
+        theta, phi = sp.symbols('theta phi', real=True)
+        dtheta, dphi = sp.symbols('dtheta dphi', real=True)
+        ds2 = dtheta**2 + sp.sin(theta)**2 * dphi**2
+        S2 = Spacetime((theta, phi), ds2)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            target = Path(tmpdir) / "s2_report"
+            completed = subprocess.CompletedProcess(args=["pdflatex"], returncode=0, stdout=b"", stderr=b"")
+            with mock.patch("spacetime.spacetime.subprocess.run", return_value=completed) as mocked_run:
+                pdf_path = S2.render_latex_pdf(target, show_riemann=False, cleanup_auxiliary=False)
+
+            tex_path = target.with_suffix(".tex")
+            self.assertEqual(pdf_path, target.with_suffix(".pdf").resolve())
+            self.assertTrue(tex_path.exists())
+            tex_contents = tex_path.read_text()
+            self.assertIn("Spacetime Report", tex_contents)
+            self.assertIn(r"d\theta", tex_contents)
+
+            mocked_run.assert_called_once()
+            args, kwargs = mocked_run.call_args
+            self.assertIn("pdflatex", args[0][0])
+            self.assertEqual(kwargs.get("cwd"), Path(tmpdir))
+            self.assertIn(tex_path.name, args[0])
 
 class TestSpacetimeOffDiagonal4D(unittest.TestCase):
     def test_rotating_minkowski_cylindrical(self):

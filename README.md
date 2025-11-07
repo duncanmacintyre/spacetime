@@ -3,10 +3,13 @@
 
 Vibecoded with ChatGPT using GPT-5.
 
-A lightweight, object-oriented wrapper around SymPy for common GR computations
-in coordinates: metrics, Christoffel symbols, Ricci tensor, and Ricci scalar.
+`spacetime` is a lightweight, object-oriented wrapper around SymPy for common
+GR computations in coordinates—metrics, Christoffel symbols, Ricci tensor, and
+Ricci scalar. It also has a few higher-level utilities for coordinate changes
+and generating PDFs that show components of the Christoffel symbols, Ricci
+tensor, and Ricci scalar.
 
-## Install / Use
+## Quick start
 
 ```python
 import sympy as sp
@@ -19,19 +22,67 @@ dtheta, dphi = sp.symbols('dtheta dphi', real=True)
 ds2 = dtheta**2 + sp.sin(theta)**2 * dphi**2
 S2 = Spacetime((theta, phi), ds2)
 
-# Access read-only attributes
-Gamma = S2.Gamma           # Γ^i_{jk}
-Ricci = S2.Ricci           # R_ij
-R     = S2.Ricci_scalar    # scalar curvature
+# Cached tensor accessors
+Gamma = S2.Gamma          # Γ^i_{jk}
+Riemann = S2.Riemann      # R^i_{ jkl }
+Ricci = S2.Ricci          # R_ij
+scalar = S2.Ricci_scalar  # curvature scalar R
 
-# Pretty-print non-zeros
-S2.print_nonzero()
-S2.print_metric()
+S2.print_metric()       # ds^2 in terms of the cached metric
+S2.print_nonzero()      # summarized tensors, defaulting to plain text
 ```
+
+## Printing descriptions of the spacetime
+
+`print_metric()` prints the line element in
+terms of the canonical `d<coord>` symbols.
+
+`print_nonzero` prints out non-zero elements of Christoffel symbols, Riemann
+tensors, Ricci tensors, and Ricci scalars.
+
+```python
+S2.print_nonzero(
+    latex=False,               # Plain SymPy strings (set True for LaTeX)
+    show_all_pairs=False,      # Only j<=k Christoffel symbols; True shows all
+    show_christoffel=True,     # Include Γ^i_{jk}
+    show_riemann=True,         # Include R^i_{ jkl }
+    show_ricci=True,           # Include R_ij
+    show_scalar=True,          # Include Ricci scalar R
+)
+```
+
+## Exporting PDFs
+
+To generate a PDF describing the spacetime, call `Spacetime.render_latex_pdf`.
+It mirrors the `print_nonzero` toggles and adds a few output controls. All
+parameters are optional; the snippet shows their default values plus a brief
+description:
+
+```python
+pdf_path = S2.render_latex_pdf(
+    filename="spacetime_report",  # Output stem; .tex/.pdf live next to it
+    show_metric=True,              # Include ds^2 block
+    show_christoffel=True,         # Include Γ^i_{jk}
+    show_riemann=True,             # Include R^i_{ jkl }
+    show_ricci=True,               # Include R_ij
+    show_scalar=True,              # Include Ricci scalar R
+    show_all_pairs=False,          # Upper-triangle Γ unless True
+    pdflatex="pdflatex",          # LaTeX engine invoked to build the PDF
+    cleanup_auxiliary=True,        # Remove .aux/.log/.out afterward
+)
+print(f"PDF ready at {pdf_path}")
+```
+
+- Output: `spacetime_report.tex` and `spacetime_report.pdf` (or whatever stem
+  you provide). Directories are created automatically.
+- Requirements: a LaTeX distribution available on `PATH` matching the
+  `pdflatex` argument.
+- Clean-up: auxiliary files vanish by default; set `cleanup_auxiliary=False`
+  to inspect them.
 
 ## Coordinate changes
 
-Transform to a new chart using old coordinates expressed as functions of the new:
+Transform to a new Spacetime using old coordinates expressed as functions of the new:
 
 ```python
 x, y = sp.symbols('x y', real=True)
@@ -47,20 +98,29 @@ E2_polar = E2.change_coordinates(
 E2_polar.print_metric()  # ds^2 = dr^2 + r^2 dphi^2
 ```
 
-## Notes
+## Additional notes
 
-- The line element must use symbols named `d<coord>` to represent differentials.
-- Metrics with off-diagonal terms are supported.
-- All computations assume the Levi-Civita connection.
-- Symbolic simplification is applied; use SymPy's `simplify`/`factor` etc. as needed.
+- Line elements must use symbols named `d<coord>` so the metric reconstruction
+  logic can match them to `coords`. (Example: `dx`, `dy`, `dt` for `x`, `y`, `t`.)
+- Off-diagonal metrics are fully supported; `_metric_from_line_element` handles
+  mixed differential terms automatically.
+- Everything assumes a Levi-Civita connection. Switch to `sp.diff`/`sp.Matrix`
+  yourself if you need torsionful connections.
+- SymPy simplification (`sp.simplify`) is applied internally before storing
+  tensors. For heavier algebraic manipulation, compose with SymPy tools
+  (`simplify`, `factor`, `together`, etc.).
 
+### The Riemanns and Riccis as SymPy objects
 
-### Riemann tensor
-- `Spacetime.Riemann` returns `R[i,j,k,l] = R^i_{ j k l }`.
-- `Spacetime.Ricci` contracts `Riemann`: `R_ij = R^k_{ i j k }` (note the overall sign flip relative to the common first–third convention, e.g., a positively curved 2-sphere reports `Ricci = -metric`).
-- `print_nonzero(..., show_christoffel=True, show_riemann=True, show_ricci=True, show_scalar=True)`
-  controls printed items.
+- `Spacetime.Riemann` returns `R^i_{ j k l }` as a rank-4 SymPy array.
+- `Spacetime.Ricci` contracts as `R_ij = R^k_{ i j k }`; because of the selected
+  index placement, a positively curved 2-sphere yields `Ricci = -metric`.
+- `Spacetime.Ricci_scalar` gives the curvature scalar `R`.
 
 ## Examples
 
-Run `python examples/schwarzschild_examples.py` to explore metric determinants, horizon locations, and representative components of the Schwarzschild solution in static, advanced Eddington–Finkelstein, and isotropic coordinates generated via `Spacetime.change_coordinates`.
+- `python examples/schwarzschild_examples.py` explores metric determinants,
+  horizons, and representative components of the Schwarzschild solution in
+  multiple charts using `Spacetime.change_coordinates`.
+- `python examples/render_pdf_report.py` shows how to generate a 2-sphere PDF
+  using the `render_latex_pdf` helper.
