@@ -41,6 +41,16 @@ class TestSpacetimeBasics(unittest.TestCase):
         self.assertEqual(sp.simplify(S2.Ricci - S2.metric), sp.zeros(2))
         self.assertEqual(sp.simplify(S2.Ricci_scalar - 2), 0)
 
+    def test_hyperbolic_plane(self):
+        theta, phi = sp.symbols('theta phi', real=True)
+        dtheta, dphi = sp.symbols('dtheta dphi', real=True)
+        ds2 = dtheta**2 + sp.sinh(theta)**2 * dphi**2
+        H2 = Spacetime((theta, phi), ds2)
+
+        # Negative curvature space yields negative scalar with this convention.
+        self.assertEqual(sp.simplify(H2.Ricci + H2.metric), sp.zeros(2))
+        self.assertEqual(sp.simplify(H2.Ricci_scalar + 2), 0)
+
     def test_print_methods(self):
         theta, phi = sp.symbols('theta phi', real=True)
         dtheta, dphi = sp.symbols('dtheta dphi', real=True)
@@ -141,9 +151,61 @@ class TestSpacetime4D(unittest.TestCase):
         self.assertNotIn("Christoffel", out)
         self.assertNotIn("Riemann tensor", out)
 
-if __name__ == "__main__":
-    unittest.main()
+class TestSpacetimeCurvatureScalars(unittest.TestCase):
+    def test_desitter_static_patch(self):
+        t, r, th, ph = sp.symbols('t r theta phi', real=True, positive=True)
+        dt, dr, dth, dph = sp.symbols('dt dr dtheta dphi', real=True)
+        H = sp.symbols('H', positive=True)
 
+        f = 1 - H**2*r**2
+        ds2 = -f*dt**2 + f**-1*dr**2 + r**2*(dth**2 + sp.sin(th)**2 * dph**2)
+        dS = Spacetime((t, r, th, ph), ds2)
+
+        # Constant curvature space: R_ij = 3 H^2 g_ij and scalar = 12 H^2.
+        self.assertEqual(sp.simplify(dS.Ricci - 3*H**2*dS.metric), sp.zeros(4))
+        self.assertEqual(sp.simplify(dS.Ricci_scalar - 12*H**2), 0)
+
+
+class TestSpacetimeInternals(unittest.TestCase):
+    def test_property_caching(self):
+        x, y = sp.symbols('x y', real=True)
+        dx, dy = sp.symbols('dx dy', real=True)
+        ds2 = dx**2 + dy**2
+        M = Spacetime((x, y), ds2)
+
+        inv1 = M.inv_metric
+        self.assertIs(inv1, M.inv_metric)
+
+        Gamma1 = M.Gamma
+        self.assertIs(Gamma1, M.Gamma)
+
+        Riemann1 = M.Riemann
+        self.assertIs(Riemann1, M.Riemann)
+
+    def test_change_coordinates_mismatch_raises(self):
+        x, y, r = sp.symbols('x y r', real=True)
+        dx, dy = sp.symbols('dx dy', real=True)
+        ds2 = dx**2 + dy**2
+        M = Spacetime((x, y), ds2)
+
+        with self.assertRaises(ValueError):
+            M.change_coordinates((r,), (r,))
+
+    def test_print_nonzero_latex_all_pairs(self):
+        theta, phi = sp.symbols('theta phi', real=True)
+        dtheta, dphi = sp.symbols('dtheta dphi', real=True)
+        ds2 = dtheta**2 + sp.sin(theta)**2 * dphi**2
+        S2 = Spacetime((theta, phi), ds2)
+
+        import io, contextlib
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            S2.print_nonzero(latex=True, show_all_pairs=True, show_riemann=False, show_ricci=False, show_scalar=False)
+        out = buf.getvalue()
+        self.assertIn("# Non-zero Christoffel symbols", out)
+        self.assertIn(r"\Gamma^0_{11}", out)
+        self.assertIn(r"\Gamma^1_{10}", out)
+        self.assertNotIn("Ricci tensor components", out)
 
 class TestSpacetimeOffDiagonal4D(unittest.TestCase):
     def test_rotating_minkowski_cylindrical(self):
@@ -231,3 +293,7 @@ class TestSpacetimeOffDiagonal4D(unittest.TestCase):
         K = sp.simplify(sp.together(sp.factor(K)))
         expected = sp.simplify(48*M**2 / r**6)
         self.assertEqual(sp.simplify(K - expected), 0)
+
+
+if __name__ == "__main__":
+    unittest.main()
