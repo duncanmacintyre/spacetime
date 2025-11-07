@@ -35,14 +35,26 @@ S2.print_nonzero()      # summarized tensors, defaulting to plain text
 ## Printing descriptions of the spacetime
 
 `print_metric()` prints the line element in
-terms of the canonical `d<coord>` symbols.
+terms of the canonical `d<coord>` symbols. Inside IPython/Jupyter it
+automatically routes the result through MathJax; otherwise it falls back to
+plain text.
 
 `print_nonzero` prints out non-zero elements of Christoffel symbols, Riemann
-tensors, Ricci tensors, and Ricci scalars.
+tensors, Ricci tensors, and Ricci scalars. It now accepts ``latex=None`` by
+default:
+
+- ``latex=None`` – auto mode. In IPython/Jupyter the tensors render via
+  MathJax; in plain terminals they fall back to text.
+- ``latex=True`` – always print LaTeX strings (no auto-rendering) so you can
+  copy/paste into a document.
+- ``latex=False`` – always print plain SymPy strings.
+
+All parameters are optional; the snippet shows their default values plus a brief
+description:
 
 ```python
 S2.print_nonzero(
-    latex=False,               # Plain SymPy strings (set True for LaTeX)
+    latex=None,                # Auto; True prints LaTeX text, False plain text
     show_all_pairs=False,      # Only j<=k Christoffel symbols; True shows all
     show_christoffel=True,     # Include Γ^i_{jk}
     show_riemann=True,         # Include R^i_{ jkl }
@@ -51,12 +63,27 @@ S2.print_nonzero(
 )
 ```
 
+### Notebook-friendly LaTeX
+
+`Spacetime.latex_components` has the same arguments but returns a string you can
+feed directly to IPython:
+
+```python
+from IPython.display import Math
+
+Math(
+    S2.latex_components(
+        show_riemann=False,   # hide bulky tensors if desired
+        show_all_pairs=True,  # include all Γ^i_{jk}
+        # other arguments as above
+    )
+)
+```
+
 ## Exporting PDFs
 
 To generate a PDF describing the spacetime, call `Spacetime.render_latex_pdf`.
-It mirrors the `print_nonzero` toggles and adds a few output controls. All
-parameters are optional; the snippet shows their default values plus a brief
-description:
+It mirrors the usage of `print_nonzero` but adds a few output controls. 
 
 ```python
 pdf_path = S2.render_latex_pdf(
@@ -124,3 +151,5 @@ E2_polar.print_metric()  # ds^2 = dr^2 + r^2 dphi^2
   multiple charts using `Spacetime.change_coordinates`.
 - `python examples/render_pdf_report.py` shows how to generate a 2-sphere PDF
   using the `render_latex_pdf` helper.
+- `examples/Schwarzschild notebook.ipynb` demonstrates usage in a Jupyter
+  notebook, including MathJax-rendered tensors.

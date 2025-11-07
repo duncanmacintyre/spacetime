@@ -214,6 +214,71 @@ class TestSpacetimeInternals(unittest.TestCase):
         self.assertIn(r"\Gamma^1_{10}", out)
         self.assertNotIn("Ricci tensor components", out)
 
+    def test_print_metric_ipython_display(self):
+        theta, phi = sp.symbols('theta phi', real=True)
+        dtheta, dphi = sp.symbols('dtheta dphi', real=True)
+        ds2 = dtheta**2 + sp.sin(theta)**2 * dphi**2
+        S2 = Spacetime((theta, phi), ds2)
+
+        calls = []
+
+        def fake_display(expr):
+            calls.append(expr)
+
+        with mock.patch("spacetime.spacetime._ipython_math_display", return_value=fake_display):
+            S2.print_metric()
+
+        self.assertEqual(len(calls), 1)
+        self.assertIn("ds^2", calls[0])
+
+    def test_print_nonzero_ipython_display_default(self):
+        theta, phi = sp.symbols('theta phi', real=True)
+        dtheta, dphi = sp.symbols('dtheta dphi', real=True)
+        ds2 = dtheta**2 + sp.sin(theta)**2 * dphi**2
+        S2 = Spacetime((theta, phi), ds2)
+
+        calls = []
+
+        def fake_display(expr):
+            calls.append(expr)
+
+        with mock.patch("spacetime.spacetime._ipython_math_display", return_value=fake_display):
+            S2.print_nonzero(show_riemann=False, show_ricci=False, show_scalar=False)
+
+        self.assertEqual(len(calls), 1)
+        self.assertIn(r"\Gamma^{0}_{11}", calls[0])
+
+    def test_print_nonzero_latex_true_no_ipy_render(self):
+        theta, phi = sp.symbols('theta phi', real=True)
+        dtheta, dphi = sp.symbols('dtheta dphi', real=True)
+        ds2 = dtheta**2 + sp.sin(theta)**2 * dphi**2
+        S2 = Spacetime((theta, phi), ds2)
+
+        def boom():
+            raise AssertionError("ipython helper should not be called when latex=True")
+
+        with mock.patch("spacetime.spacetime._ipython_math_display", side_effect=lambda: boom()):
+            import io, contextlib
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                S2.print_nonzero(latex=True, show_riemann=False, show_ricci=False, show_scalar=False)
+        out = buf.getvalue()
+        self.assertIn(r"\Gamma^0_{11}", out)
+
+    def test_print_nonzero_fallback_plain_text_when_no_ipy(self):
+        theta, phi = sp.symbols('theta phi', real=True)
+        dtheta, dphi = sp.symbols('dtheta dphi', real=True)
+        ds2 = dtheta**2 + sp.sin(theta)**2 * dphi**2
+        S2 = Spacetime((theta, phi), ds2)
+
+        with mock.patch("spacetime.spacetime._ipython_math_display", return_value=None):
+            import io, contextlib
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                S2.print_nonzero(latex=None, show_riemann=False, show_ricci=False, show_scalar=False)
+        out = buf.getvalue()
+        self.assertIn("Gamma^0_11", out)
+
     def test_render_latex_pdf_invokes_pdflatex(self):
         theta, phi = sp.symbols('theta phi', real=True)
         dtheta, dphi = sp.symbols('dtheta dphi', real=True)
@@ -238,6 +303,18 @@ class TestSpacetimeInternals(unittest.TestCase):
             self.assertIn("pdflatex", args[0][0])
             self.assertEqual(kwargs.get("cwd"), Path(tmpdir))
             self.assertIn(tex_path.name, args[0])
+
+    def test_latex_components_string(self):
+        theta, phi = sp.symbols('theta phi', real=True)
+        dtheta, dphi = sp.symbols('dtheta dphi', real=True)
+        ds2 = dtheta**2 + sp.sin(theta)**2 * dphi**2
+        S2 = Spacetime((theta, phi), ds2)
+
+        latex_str = S2.latex_components(show_riemann=False)
+        self.assertIn(r"\textbf{Line element}", latex_str)
+        self.assertIn(r"\begin{aligned}", latex_str)
+        self.assertIn(r"\Gamma^{0}_{11}", latex_str)
+        self.assertNotIn(r"R^{0}_{", latex_str)  # Riemann suppressed
 
 class TestSpacetimeOffDiagonal4D(unittest.TestCase):
     def test_rotating_minkowski_cylindrical(self):

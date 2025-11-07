@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 import subprocess
 from textwrap import dedent
-from typing import Sequence, Tuple, Union
+from typing import Optional, Sequence, Tuple, Union
 
 import sympy as sp
 
@@ -20,6 +20,25 @@ def _find_symbol_by_name(expr: sp.Expr, name: str) -> sp.Symbol:
         if str(s) == name:
             return s
     return sp.Symbol(name)
+
+
+def _ipython_math_display():
+    try:
+        from IPython import get_ipython
+        from IPython.display import Math, display
+    except Exception:  # pragma: no cover - best-effort import
+        return None
+    shell = get_ipython()
+    if shell is None:
+        return None
+    shell_name = shell.__class__.__name__
+    if shell_name != "ZMQInteractiveShell":
+        return None
+
+    def _show(expr: str) -> None:
+        display(Math(expr))
+
+    return _show
 
 def _metric_from_line_element(ds2: sp.Expr, coords: Sequence[sp.Symbol]) -> sp.Matrix:
     n = len(coords)
@@ -185,13 +204,97 @@ class Spacetime:
             mapping[dcoord] = rf"d{sp.latex(coord)}"
         return mapping
 
+    def _collect_latex_blocks(
+        self,
+        *,
+        show_metric: bool,
+        show_christoffel: bool,
+        show_riemann: bool,
+        show_ricci: bool,
+        show_scalar: bool,
+        show_all_pairs: bool,
+    ) -> list[Tuple[str, list[Tuple[str, str]], str]]:
+        latex_symbol_map = self._latex_symbol_map()
+
+        def fmt(expr: sp.Expr) -> str:
+            return sp.latex(sp.simplify(expr), symbol_names=latex_symbol_map)
+
+        blocks: list[Tuple[str, list[Tuple[str, str]], str]] = []
+
+        if show_metric:
+            ds2 = sp.latex(self._line_element_expr(), symbol_names=latex_symbol_map)
+            blocks.append(("Line element", [("ds^2", ds2)], "No metric available."))
+
+        n = len(self._coords)
+        zero = sp.S.Zero
+
+        if show_christoffel:
+            christoffel_rows: list[Tuple[str, str]] = []
+            for i in range(n):
+                for j in range(n):
+                    k_iter = range(n) if show_all_pairs else range(j, n)
+                    for k in k_iter:
+                        val = sp.simplify(self.Gamma[i, j, k])
+                        if val != zero:
+                            christoffel_rows.append(
+                                (rf"\Gamma^{{{i}}}_{{{j}{k}}}", fmt(val))
+                            )
+            blocks.append(("Christoffel symbols", christoffel_rows, "All Christoffel symbols vanish."))
+
+        if show_riemann:
+            riemann_rows: list[Tuple[str, str]] = []
+            for i in range(n):
+                for j in range(n):
+                    for k in range(n):
+                        for l in range(n):
+                            val = sp.simplify(self.Riemann[i, j, k, l])
+                            if val != zero:
+                                riemann_rows.append((rf"R^{{{i}}}_{{{j}{k}{l}}}", fmt(val)))
+            blocks.append(("Riemann tensor", riemann_rows, "All Riemann tensor components vanish."))
+
+        if show_ricci:
+            ricci_rows: list[Tuple[str, str]] = []
+            for i in range(n):
+                for j in range(i, n):
+                    val = sp.simplify(self.Ricci[i, j])
+                    if val != zero:
+                        ricci_rows.append((rf"R_{{{i}{j}}}", fmt(val)))
+            blocks.append(("Ricci tensor", ricci_rows, "All Ricci tensor components vanish."))
+
+        if show_scalar:
+            scalar_rows = [("R", fmt(self.Ricci_scalar))]
+            blocks.append(("Ricci scalar", scalar_rows, "R = 0"))
+
+        return blocks
+
     def print_metric(self):
         ds2 = self._line_element_expr()
+        display_fn = _ipython_math_display()
+        if display_fn is not None:
+            latex_expr = sp.latex(ds2, symbol_names=self._latex_symbol_map())
+            display_fn(rf"ds^2 = {latex_expr}")
+            return
         print(f"ds^2 = {sp.sstr(ds2)}")
 
-    def print_nonzero(self, latex: bool=False, show_all_pairs: bool=False,
+    def print_nonzero(self, latex: Optional[bool]=None, show_all_pairs: bool=False,
                       show_christoffel: bool=True, show_riemann: bool=True,
                       show_ricci: bool=True, show_scalar: bool=True):
+        if latex is None:
+            ipy_display = _ipython_math_display()
+            if ipy_display is not None:
+                ipy_display(
+                    self.latex_components(
+                        show_metric=False,
+                        show_christoffel=show_christoffel,
+                        show_riemann=show_riemann,
+                        show_ricci=show_ricci,
+                        show_scalar=show_scalar,
+                        show_all_pairs=show_all_pairs,
+                    )
+                )
+                return
+            latex = False
+
         coords = self._coords
         n = len(coords)
         zero = sp.S.Zero
@@ -303,10 +406,15 @@ class Spacetime:
         tex_path = pdf_path.with_suffix(".tex")
         pdf_path.parent.mkdir(parents=True, exist_ok=True)
 
-        latex_symbol_map = self._latex_symbol_map()
+        blocks = self._collect_latex_blocks(
+            show_metric=show_metric,
+            show_christoffel=show_christoffel,
+            show_riemann=show_riemann,
+            show_ricci=show_ricci,
+            show_scalar=show_scalar,
+            show_all_pairs=show_all_pairs,
+        )
 
-        def fmt(expr):
-            return sp.latex(sp.simplify(expr), symbol_names=latex_symbol_map)
         lines = [r"\section*{Spacetime Report}"]
         coords_str = ", ".join(sp.latex(c) for c in self._coords)
         lines.append(rf"Coordinates: $({coords_str})$")
@@ -322,51 +430,8 @@ class Spacetime:
                 lines.append(rf"  \text{{{fallback_text}}}")
             lines.append(r"\end{align*}")
 
-        if show_metric:
-            ds2 = sp.latex(self._line_element_expr(), symbol_names=latex_symbol_map)
-            add_align_block("Line element", [("ds^2", ds2)], "\text{No metric available.}")
-
-        n = len(self._coords)
-        zero = sp.S.Zero
-
-        if show_christoffel:
-            christoffel_rows = []
-            for i in range(n):
-                for j in range(n):
-                    k_iter = range(n) if show_all_pairs else range(j, n)
-                    for k in k_iter:
-                        val = sp.simplify(self.Gamma[i, j, k])
-                        if val != zero:
-                            christoffel_rows.append(
-                                (rf"\Gamma^{{{i}}}_{{{j}{k}}}", fmt(val))
-                            )
-            add_align_block("Christoffel symbols", christoffel_rows, "All Christoffel symbols vanish.")
-
-        if show_riemann:
-            riemann_rows = []
-            for i in range(n):
-                for j in range(n):
-                    for k in range(n):
-                        for l in range(n):
-                            val = sp.simplify(self.Riemann[i,j,k,l])
-                            if val != zero:
-                                riemann_rows.append(
-                                    (rf"R^{{{i}}}_{{{j}{k}{l}}}", fmt(val))
-                                )
-            add_align_block("Riemann tensor", riemann_rows, "All Riemann tensor components vanish.")
-
-        if show_ricci:
-            ricci_rows = []
-            for i in range(n):
-                for j in range(i, n):
-                    val = sp.simplify(self.Ricci[i,j])
-                    if val != zero:
-                        ricci_rows.append((rf"R_{{{i}{j}}}", fmt(val)))
-            add_align_block("Ricci tensor", ricci_rows, "All Ricci tensor components vanish.")
-
-        if show_scalar:
-            scalar_expr = fmt(self.Ricci_scalar)
-            add_align_block("Ricci scalar", [("R", scalar_expr)], "R = 0")
+        for title, rows, fallback in blocks:
+            add_align_block(title, rows, fallback)
 
         document = dedent(
             f"""
@@ -406,3 +471,38 @@ class Spacetime:
                     aux_path.unlink()
 
         return pdf_path.resolve()
+
+    def latex_components(
+        self,
+        show_metric: bool = True,
+        show_christoffel: bool = True,
+        show_riemann: bool = True,
+        show_ricci: bool = True,
+        show_scalar: bool = True,
+        show_all_pairs: bool = False,
+    ) -> str:
+        """Return a LaTeX snippet suitable for MathJax/IPython display."""
+
+        blocks = self._collect_latex_blocks(
+            show_metric=show_metric,
+            show_christoffel=show_christoffel,
+            show_riemann=show_riemann,
+            show_ricci=show_ricci,
+            show_scalar=show_scalar,
+            show_all_pairs=show_all_pairs,
+        )
+
+        parts: list[str] = []
+        for title, rows, fallback in blocks:
+            parts.append(rf"\textbf{{{title}}}\\")
+            if rows:
+                parts.append(r"\begin{aligned}")
+                for idx, (lhs, rhs) in enumerate(rows):
+                    suffix = r" \\" if idx < len(rows) - 1 else ""
+                    parts.append(rf"  {lhs} & = {rhs}{suffix}")
+                parts.append(r"\end{aligned}")
+            else:
+                parts.append(rf"\text{{{fallback}}}")
+            parts.append(r"\\[6pt]")
+
+        return "\n".join(parts).rstrip()
