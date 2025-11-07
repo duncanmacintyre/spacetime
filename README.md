@@ -60,3 +60,7 @@ E2_polar.print_metric()  # ds^2 = dr^2 + r^2 dphi^2
 - `Spacetime.Ricci` contracts `Riemann`: `R_ij = R^k_{ i k j }`.
 - `print_nonzero(..., show_christoffel=True, show_riemann=True, show_ricci=True, show_scalar=True)`
   controls printed items.
+
+## Examples
+
+Run `python examples/schwarzschild_examples.py` to explore metric determinants, horizon locations, and representative components of the Schwarzschild solution in static, advanced Eddington–Finkelstein, and isotropic coordinates generated via `Spacetime.change_coordinates`.
