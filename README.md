@@ -1,7 +1,7 @@
 
-# spacetime-lib
+# Spacetime
 
-Vibecoded with ChatGPT using GPT-5.
+Made with ChatGPT using GPT-5.
 
 `spacetime` is a lightweight, object-oriented wrapper around SymPy for common
 GR computations in coordinates—metrics, Christoffel symbols, Ricci tensor, and
