@@ -53,12 +53,12 @@ description:
 
 ```python
 S2.print_nonzero(
-    latex=None,                # Auto; True prints LaTeX text, False plain text
-    show_all_pairs=False,      # Only j<=k Christoffel symbols; True shows all
-    show_christoffel=True,     # Include Γ^i_{jk}
-    show_riemann=True,         # Include R^i_{ jkl }
-    show_ricci=True,           # Include R_ij
-    show_scalar=True,          # Include Ricci scalar R
+    latex=None,              # Auto; True prints LaTeX text, False forces plain text
+    show_all_pairs=False,    # Only j<=k Christoffel symbols; True shows all
+    show_christoffel=True,   # Include Γ^i_{jk}
+    show_riemann=True,       # Include R^i_{ jkl }
+    show_ricci=True,         # Include R_ij
+    show_scalar=True,        # Include Ricci scalar R
 )
 ```
 
@@ -124,6 +124,13 @@ E2_polar = E2.change_coordinates(
 E2_polar.print_metric()  # ds^2 = dr^2 + r^2 dphi^2
 ```
 
+## The Riemanns and Riccis as SymPy objects
+
+- `Spacetime.Riemann` returns `R^i_{ j k l }` as a rank-4 SymPy array.
+- `Spacetime.Ricci` contracts as `R_ij = R^k_{ i j k }`; because of the selected
+  index placement, a positively curved 2-sphere yields `Ricci = -metric`.
+- `Spacetime.Ricci_scalar` gives the curvature scalar `R`.
+
 ## Additional notes
 
 - Line elements must use symbols named `d<coord>` so the metric reconstruction
@@ -135,13 +142,6 @@ E2_polar.print_metric()  # ds^2 = dr^2 + r^2 dphi^2
 - SymPy simplification (`sp.simplify`) is applied internally before storing
   tensors. For heavier algebraic manipulation, compose with SymPy tools
   (`simplify`, `factor`, `together`, etc.).
-
-### The Riemanns and Riccis as SymPy objects
-
-- `Spacetime.Riemann` returns `R^i_{ j k l }` as a rank-4 SymPy array.
-- `Spacetime.Ricci` contracts as `R_ij = R^k_{ i j k }`; because of the selected
-  index placement, a positively curved 2-sphere yields `Ricci = -metric`.
-- `Spacetime.Ricci_scalar` gives the curvature scalar `R`.
 
 ## Examples
 
