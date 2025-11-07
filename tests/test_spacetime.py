@@ -38,8 +38,9 @@ class TestSpacetimeBasics(unittest.TestCase):
         self.assertEqual(sp.simplify(Gamma[0,1,1] + sp.sin(theta)*sp.cos(theta)), 0)
         self.assertEqual(sp.simplify(Gamma[1,0,1] - sp.cot(theta)), 0)
         self.assertEqual(sp.simplify(Gamma[1,1,0] - sp.cot(theta)), 0)
-        self.assertEqual(sp.simplify(S2.Ricci - S2.metric), sp.zeros(2))
-        self.assertEqual(sp.simplify(S2.Ricci_scalar - 2), 0)
+        # With the first-fourth contraction, positive curvature picks up a minus sign.
+        self.assertEqual(sp.simplify(S2.Ricci + S2.metric), sp.zeros(2))
+        self.assertEqual(sp.simplify(S2.Ricci_scalar + 2), 0)
 
     def test_hyperbolic_plane(self):
         theta, phi = sp.symbols('theta phi', real=True)
@@ -47,9 +48,9 @@ class TestSpacetimeBasics(unittest.TestCase):
         ds2 = dtheta**2 + sp.sinh(theta)**2 * dphi**2
         H2 = Spacetime((theta, phi), ds2)
 
-        # Negative curvature space yields negative scalar with this convention.
-        self.assertEqual(sp.simplify(H2.Ricci + H2.metric), sp.zeros(2))
-        self.assertEqual(sp.simplify(H2.Ricci_scalar + 2), 0)
+        # Negative curvature space now yields positive Ricci eigenvalues.
+        self.assertEqual(sp.simplify(H2.Ricci - H2.metric), sp.zeros(2))
+        self.assertEqual(sp.simplify(H2.Ricci_scalar - 2), 0)
 
     def test_print_methods(self):
         theta, phi = sp.symbols('theta phi', real=True)
@@ -161,9 +162,9 @@ class TestSpacetimeCurvatureScalars(unittest.TestCase):
         ds2 = -f*dt**2 + f**-1*dr**2 + r**2*(dth**2 + sp.sin(th)**2 * dph**2)
         dS = Spacetime((t, r, th, ph), ds2)
 
-        # Constant curvature space: R_ij = 3 H^2 g_ij and scalar = 12 H^2.
-        self.assertEqual(sp.simplify(dS.Ricci - 3*H**2*dS.metric), sp.zeros(4))
-        self.assertEqual(sp.simplify(dS.Ricci_scalar - 12*H**2), 0)
+        # Constant curvature space: R_ij = -3 H^2 g_ij and scalar = -12 H^2.
+        self.assertEqual(sp.simplify(dS.Ricci + 3*H**2*dS.metric), sp.zeros(4))
+        self.assertEqual(sp.simplify(dS.Ricci_scalar + 12*H**2), 0)
 
 
 class TestSpacetimeInternals(unittest.TestCase):

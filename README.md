@@ -57,7 +57,7 @@ E2_polar.print_metric()  # ds^2 = dr^2 + r^2 dphi^2
 
 ### Riemann tensor
 - `Spacetime.Riemann` returns `R[i,j,k,l] = R^i_{ j k l }`.
-- `Spacetime.Ricci` contracts `Riemann`: `R_ij = R^k_{ i k j }`.
+- `Spacetime.Ricci` contracts `Riemann`: `R_ij = R^k_{ i j k }` (note the overall sign flip relative to the common first–third convention, e.g., a positively curved 2-sphere reports `Ricci = -metric`).
 - `print_nonzero(..., show_christoffel=True, show_riemann=True, show_ricci=True, show_scalar=True)`
   controls printed items.
 

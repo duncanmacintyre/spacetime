@@ -71,14 +71,14 @@ def _riemann(Gamma: sp.MutableDenseNDimArray, coords: Sequence[sp.Symbol], simpl
     return R
 
 def _ricci_from_riemann(Riemann: sp.MutableDenseNDimArray, simplify: bool=True) -> sp.Matrix:
-    """R_ij = R^k_{ i k j }"""
+    """R_ij = R^k_{ i j k }"""
     n = Riemann.shape[0]
     R = sp.MutableDenseMatrix([[sp.S.Zero]*n for _ in range(n)])
     for i in range(n):
         for j in range(n):
             term = 0
             for k in range(n):
-                term += Riemann[k, i, k, j]
+                term += Riemann[k, i, j, k]
             R[i,j] = sp.simplify(term) if simplify else term
     return sp.Matrix(R)
 
