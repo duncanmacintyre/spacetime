@@ -4,10 +4,9 @@
 Made with ChatGPT using GPT-5.
 
 `spacetime` is a lightweight, object-oriented wrapper around SymPy for common
-GR computations in coordinates—metrics, Christoffel symbols, Ricci tensor, and
-Ricci scalar. It also has a few higher-level utilities for coordinate changes
-and generating PDFs that show components of the Christoffel symbols, Ricci
-tensor, and Ricci scalar.
+general relativity computations. It can compute Christoffel symbols, the Ricci
+tensor, and the Ricci scalar, and display their components inline or in a PDF.
+It can also carry out changes in coordinates.
 
 ## Quick start
 
