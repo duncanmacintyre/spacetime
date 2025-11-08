@@ -208,6 +208,8 @@ class Spacetime:
         self,
         *,
         show_metric: bool,
+        show_metric_components: bool,
+        show_inverse_metric: bool,
         show_christoffel: bool,
         show_riemann: bool,
         show_ricci: bool,
@@ -227,6 +229,25 @@ class Spacetime:
 
         n = len(self._coords)
         zero = sp.S.Zero
+
+        if show_metric_components:
+            metric_rows: list[Tuple[str, str]] = []
+            for i in range(n):
+                for j in range(i, n):
+                    val = sp.simplify(self.metric[i, j])
+                    if val != zero:
+                        metric_rows.append((rf"g_{{{i}{j}}}", fmt(val)))
+            blocks.append(("Metric components", metric_rows, "All metric components vanish."))
+
+        if show_inverse_metric:
+            ginv = self.inv_metric
+            inv_rows: list[Tuple[str, str]] = []
+            for i in range(n):
+                for j in range(i, n):
+                    val = sp.simplify(ginv[i, j])
+                    if val != zero:
+                        inv_rows.append((rf"g^{{{i}{j}}}", fmt(val)))
+            blocks.append(("Inverse metric components", inv_rows, "All inverse metric components vanish."))
 
         if show_christoffel:
             christoffel_rows: list[Tuple[str, str]] = []
@@ -277,6 +298,7 @@ class Spacetime:
         print(f"ds^2 = {sp.sstr(ds2)}")
 
     def print_nonzero(self, latex: Optional[bool]=None, show_all_pairs: bool=False,
+                      show_metric_components: bool=False, show_inverse_metric: bool=False,
                       show_christoffel: bool=True, show_riemann: bool=True,
                       show_ricci: bool=True, show_scalar: bool=True):
         if latex is None:
@@ -285,6 +307,8 @@ class Spacetime:
                 ipy_display(
                     self.latex_components(
                         show_metric=False,
+                        show_metric_components=show_metric_components,
+                        show_inverse_metric=show_inverse_metric,
                         show_christoffel=show_christoffel,
                         show_riemann=show_riemann,
                         show_ricci=show_ricci,
@@ -298,9 +322,45 @@ class Spacetime:
         coords = self._coords
         n = len(coords)
         zero = sp.S.Zero
+        metric = self.metric
+        inv_metric = None
 
         def fmt(expr):
             return sp.latex(sp.simplify(expr)) if latex else sp.sstr(sp.simplify(expr))
+
+        # Metric components
+        if show_metric_components:
+            print("# Non-zero metric components g_ij")
+            printed_metric = 0
+            for i in range(n):
+                for j in range(i, n):
+                    val = sp.simplify(metric[i, j])
+                    if val != zero:
+                        if latex:
+                            print(rf"g_{{{i}{j}}} = {fmt(val)}")
+                        else:
+                            print(f"g_{i}{j} = {fmt(val)}")
+                        printed_metric += 1
+            if printed_metric == 0:
+                print("(all g_ij vanish)")
+
+        # Inverse metric components
+        if show_inverse_metric:
+            print("# Non-zero inverse metric components g^{ij}")
+            if inv_metric is None:
+                inv_metric = self.inv_metric
+            printed_inv = 0
+            for i in range(n):
+                for j in range(i, n):
+                    val = sp.simplify(inv_metric[i, j])
+                    if val != zero:
+                        if latex:
+                            print(rf"g^{{{i}{j}}} = {fmt(val)}")
+                        else:
+                            print(f"g^{i}{j} = {fmt(val)}")
+                        printed_inv += 1
+            if printed_inv == 0:
+                print("(all g^ij vanish)")
 
         # Christoffels
         if show_christoffel:
@@ -358,6 +418,8 @@ class Spacetime:
 
     def render_latex_pdf(self, filename: Union[str, Path] = "spacetime_report",
                          show_metric: bool = True,
+                         show_metric_components: bool = False,
+                         show_inverse_metric: bool = False,
                          show_christoffel: bool = True,
                          show_riemann: bool = True,
                          show_ricci: bool = True,
@@ -372,9 +434,9 @@ class Spacetime:
         filename:
             Target filename or stem for the resulting PDF. The matching .tex file
             is written in the same directory for inspection.
-        show_metric/show_*:
-            Mirror ``print_nonzero`` toggles to control which tensors appear in
-            the report.
+        show_metric/show_metric_components/show_inverse_metric/show_*:
+            Mirror ``print_nonzero`` toggles to control which tensors or matrix
+            entries appear in the report.
         show_all_pairs:
             Include off-diagonal Christoffel components instead of only the
             symmetric upper triangle.
@@ -408,6 +470,8 @@ class Spacetime:
 
         blocks = self._collect_latex_blocks(
             show_metric=show_metric,
+            show_metric_components=show_metric_components,
+            show_inverse_metric=show_inverse_metric,
             show_christoffel=show_christoffel,
             show_riemann=show_riemann,
             show_ricci=show_ricci,
@@ -475,6 +539,8 @@ class Spacetime:
     def latex_components(
         self,
         show_metric: bool = True,
+        show_metric_components: bool = False,
+        show_inverse_metric: bool = False,
         show_christoffel: bool = True,
         show_riemann: bool = True,
         show_ricci: bool = True,
@@ -485,6 +551,8 @@ class Spacetime:
 
         blocks = self._collect_latex_blocks(
             show_metric=show_metric,
+            show_metric_components=show_metric_components,
+            show_inverse_metric=show_inverse_metric,
             show_christoffel=show_christoffel,
             show_riemann=show_riemann,
             show_ricci=show_ricci,

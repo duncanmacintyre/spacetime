@@ -77,6 +77,22 @@ class TestSpacetimeBasics(unittest.TestCase):
         out = buf.getvalue()
         assert "Ricci scalar R" in out
 
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            S2.print_nonzero(
+                show_metric_components=True,
+                show_inverse_metric=True,
+                show_christoffel=False,
+                show_riemann=False,
+                show_ricci=False,
+                show_scalar=False,
+            )
+        out = buf.getvalue()
+        self.assertIn("metric components", out)
+        self.assertIn("g_00", out)
+        self.assertIn("inverse metric components", out)
+        self.assertIn("g^11", out)
+
 class TestSpacetime4D(unittest.TestCase):
     def test_minkowski_4d_cartesian(self):
         t, x, y, z = sp.symbols('t x y z', real=True)
@@ -157,6 +173,24 @@ class TestSpacetime4D(unittest.TestCase):
         self.assertIn("Ricci scalar R", out)
         self.assertNotIn("Christoffel", out)
         self.assertNotIn("Riemann tensor", out)
+
+    def test_latex_component_metric_flags(self):
+        theta, phi = sp.symbols('theta phi', real=True)
+        dtheta, dphi = sp.symbols('dtheta dphi', real=True)
+        ds2 = dtheta**2 + sp.sin(theta)**2 * dphi**2
+        S2 = Spacetime((theta, phi), ds2)
+
+        latex = S2.latex_components(
+            show_metric=True,
+            show_metric_components=True,
+            show_inverse_metric=True,
+            show_christoffel=False,
+            show_riemann=False,
+            show_ricci=False,
+            show_scalar=False,
+        )
+        self.assertIn("g_{00}", latex)
+        self.assertIn("g^{11}", latex)
 
 class TestSpacetimeCurvatureScalars(unittest.TestCase):
     def test_desitter_static_patch(self):

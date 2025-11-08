@@ -55,6 +55,8 @@ description:
 S2.print_nonzero(
     latex=None,              # Auto; True prints LaTeX text, False forces plain text
     show_all_pairs=False,    # Only j<=k Christoffel symbols; True shows all
+    show_metric_components=False,  # Include g_ij entries when True
+    show_inverse_metric=False,     # Include g^{ij} entries when True
     show_christoffel=True,   # Include Γ^i_{jk}
     show_riemann=True,       # Include R^i_{ jkl }
     show_ricci=True,         # Include R_ij
@@ -88,6 +90,8 @@ It mirrors the usage of `print_nonzero` but adds a few output controls.
 pdf_path = S2.render_latex_pdf(
     filename="spacetime_report",  # Output stem; .tex/.pdf live next to it
     show_metric=True,              # Include ds^2 block
+    show_metric_components=False,  # Include g_ij matrix entries
+    show_inverse_metric=False,     # Include g^{ij} entries
     show_christoffel=True,         # Include Γ^i_{jk}
     show_riemann=True,             # Include R^i_{ jkl }
     show_ricci=True,               # Include R_ij
